@@ -1,10 +1,17 @@
 # Call Microsoft Graph in a universal Windows 10 app
 
-In this article we look at the minimum tasks required to get an access token from Azure Active Directory (AD) and call the Microsoft Graph. We use code from the [Office 365 Connect Sample for UWP Using Microsoft Graph](https://github.com/microsoftgraph/uwp-csharp-connect-rest-sample) to explain the main concepts that you have to implement in your app.
+This article describes the tasks required to get an access token from the [v2 authentication endpoint](https://graph.microsoft.io/en-us/docs/authorization/converged_auth) and call the Microsoft Graph. It walks you through the code inside the [Microsoft Graph Connect Sample for UWP (REST)](https://github.com/microsoftgraph/uwp-csharp-connect-rest-sample) and [Microsoft Graph Connect Sample for UWP (Library)](https://github.com/microsoftgraph/uwp-csharp-connect-sample) samples to explain the main concepts that you have to implement in an app that uses Microsoft Graph. The article also describes how to access the Microsoft Graph by using both raw REST calls and the [Microsoft Graph Client Library](http://www.nuget.org/packages/Microsoft.Graph/).
+
+You can download both versions of the app that you'll create in this walkthrough from these GitHub repos:
+
+* [Microsoft Graph Connect Sample for UWP (REST)](https://github.com/microsoftgraph/uwp-csharp-connect-rest-sample)
+* [Microsoft Graph Connect Sample for UWP (Library)](https://github.com/microsoftgraph/uwp-csharp-connect-sample)
+
+You can also download preconfigured copies of these samples from the [Microsoft Graph Quick Starts page](http://dev.office.com/getting-started/office365apis).
 
 ## Sample user interface
 
-The sample contains a very simple user interface, consisting of a top command bar, a **connect button**, a **send mail** button, and a text box that is automatically populated with the signed-in user's e-mail address but that can be edited. The command bar also contains a button that enables developers to find the app's redirect URI.
+The sample contains a very simple user interface, consisting of a top command bar, a **connect button**, a **send mail** button, and a text box that is automatically populated with the signed-in user's e-mail address but that can be edited.
 
 The **send mail** button is disabled when the user has not connected:
 
@@ -16,139 +23,284 @@ The top command bar contains a disconnect button when the user has connected:
 
 All of the sample's UI strings are stored in the Resources.resw file inside the Assets folder.
 
+## Prerequisites
+
+To follow along with this walkthrough, you'll need: 
+
+- A [Microsoft account](https://www.outlook.com/) or an [Office 365 for business account](https://msdn.microsoft.com/en-us/office/office365/howto/setup-development-environment#bk_Office365Account)
+- Visual Studio 2015 
+- The [Microsoft Graph Connect Starter Project for Windows 10](https://github.com/microsoftgraph/uwp-connect-starter). This template contains several empty classes that you'll add code to. It also contains complete views and resource strings.
+
+
 ## Register the app
  
-Windows 10 provides each application with a unique URI and ensures that messages sent to that URI are only sent to that application. You need to create your app and find this system-generated URI before you register your app. In the sample you'll find this method in the AuthenticationHelper.cs file:
+1. Sign into the [App Registration Portal](https://apps.dev.microsoft.com/) using either your personal or work or school account.
+2. Select **Add an app**.
+3. Enter a name for the app, and select **Create application**.
+	
+	The registration page displays, listing the properties of your app.
+ 
+4. Under **Platforms**, select **Add platform**.
+5. Select **Mobile platform**.
+6. Copy both the Client Id (App Id) and Redirect URI values to the clipboard. You'll need to enter these values into the sample app.
 
-```c#
-        public static string GetAppRedirectURI()
-        {
-            // Windows 10 universal apps require redirect URI in the format below. Add a breakpoint to this line and run the app before you register it, so that
-            // you can supply the correct redirect URI value.
-            return string.Format("ms-appx-web://microsoft.aad.brokerplugin/{0}", WebAuthenticationBroker.GetCurrentApplicationCallbackUri().Host).ToUpper();
-        }
-```
+	The app id is a unique identifier for your app. The redirect URI is a unique URI provided by Windows 10 for each application to ensure that messages sent to that URI are only sent to that application. 
 
-That method is triggered in the sample by the **copy redirect URI** button, but you can also follow the pattern in the [AzureAD-NativeClient-UWP-WAM](https://github.com/Azure-Samples/AzureAD-NativeClient-UWP-WAM) sample, where the string is defined in the MainPage class declaration and you can fetch it by using the Visual Studio debugger. 
+7. Select **Save**.
 
-Follow the steps in the [Register and configure the app](https://github.com/microsoftgraph/uwp-csharp-connect-rest-sample#register) of the sample's Readme in order to register your app after you've gotten the redirect URI value.
+## Configure the project
 
-You'll need the client ID value from the **Configure** page of your Azure application when you configure your app for authentication.
+1. Open the solution file for the starter project in Visual Studio.
+2. Open the project's **App.xaml** file and locate the `Application.Resources` node. Replace the application ID and redirect URI placeholders with the corresponding values of the app you registered.
 
-## Connect to Microsoft Graph
-
-The sample uses the native Windows 10 WebAccountManager API to authenticate users. It follows a pattern similar to the one described in the [Develop Windows Universal Apps with Azure AD and the Windows 10 Identity API](http://blogs.technet.com/b/ad/archive/2015/08/03/develop-windows-universal-apps-with-azure-ad-and-the-windows-10-identity-api.aspx) blog post and demonstrated in the [AzureAD-NativeClient-UWP-WAM](https://github.com/Azure-Samples/AzureAD-NativeClient-UWP-WAM) sample.
-
-The App.xaml file contains the key/value pairs that your app will need in order to authenticate the user and authorize the app to send an email:
 
 ```xml
     <Application.Resources>
-        <!-- Add your client id here. -->
-        <x:String x:Key="ida:ClientID"><your client id></x:String>
-        <x:String x:Key="ida:AADInstance">https://login.microsoftonline.com/</x:String>
-        <!-- Add your developer tenant domain here. -->
-        <x:String x:Key="ida:Domain">yourtenant.onmicrosoft.com</x:String>
+        <!-- Add your Client Id here. -->
+        <x:String x:Key="ida:ClientID"><the application ID of your registered app></x:String>
+		<!-- Add your Redirect URI here. -->
+        <x:String x:Key="ida:ReturnUrl"><the redirect URI of your registered app></x:String>
     </Application.Resources>
 ```
 
-Add the client ID value that you got when you registered your app as the value for the **ida:ClientID** key. Change the value of the **ida:Domain** key so that it matches your Office 365 tenant.
+## Install the Microsoft Authentication Library (MSAL)
 
-The AuthenticationHelper.cs file contains all of the authentication code, along with additional logic that stores user information and forces authentication only when the user has disconnected from the app.
+The [Microsoft Authentication Library](https://www.nuget.org/packages/Microsoft.Identity.Client) contains classes and methods that make it easy to authenticate users through the v2 authentication endpoint.
 
-The ``GetTokenHelperAsync`` method defined in this file runs when the user authenticates and subsequently every time the app makes a call to Microsoft Graph. Its first task is to find an Azure AD account provider:
+1. In the Solution Explorer right-click the **Microsoft-Graph-UWP-Connect** project and select **Manage NuGet Packages...**
+2. Click Browse and search for Microsoft.Identity.Client.
+3. Select the latest version of the Microsoft Authentication Library and click **Install**.
+
+## Install the Microsoft Graph Client Library
+
+> **Note** If you're going to use raw REST calls to access the Microsoft Graph, you can skip this section.
+
+1. In the Solution Explorer right-click the **Microsoft-Graph-UWP-Connect** project and select **Manage NuGet Packages...**
+2. Click Browse and search for Microsoft.Graph.
+3. Select the latest version of the Microsoft Graph Client Library and click **Install**.
+
+## Create the AuthenticationHelper.cs class
+
+Open the AuthenticationHelper.cs file in the starter project. This file will contain all of the authentication code, along with additional logic that stores user information and forces authentication only when the user has disconnected from the app. This class contains at least two methods: `GetTokenForUserAsync`, and `Signout`. If you're using the Microsoft Graph Client Library, you'll need to add a third method: `GetAuthenticatedClient`.
+
+The ``GetTokenHelperAsync`` method runs when the user authenticates and subsequently every time the app makes a call to Microsoft Graph.
+
+**Using declarations**
+
+***Client library version***
+
+If you're using the Microsoft Graph Client Library, you'll need these declarations:
 
 ```c#
-           aadAccountProvider = await WebAuthenticationCoreManager.FindAccountProviderAsync("https://login.microsoft.com", authority);
+using System;
+using System.Diagnostics;
+using System.Net.Http.Headers;
+using System.Threading.Tasks;
+using Microsoft.Graph;
+using Microsoft.Identity.Client;
 ```
 
-The value of ``authority`` is a concatenated string built from two values stored in the App.xaml file: the value of the **ida:AADInstance** key plus the value of the **ida:Domain** key. This creates a tenant-specific authority. You can also use the string "organizations" if you want your app to run on any Azure AD tenant.
+***REST version***
 
-After the user authenticates, the app stores the user ID value in ``ApplicationData.Current.RoamingSettings``. The ``GetTokenHelperAsync`` method first checks to see if this value exists, and if so, it tries to authenticate silently:
+If you're using raw REST calls to access the Microsoft Graph, you'll need these `using` declarations in the AuthenticationHelper class:
 
 ```c#
-            // Check if there's a record of the last account used with the app
-            var userID = _settings.Values["userID"];
+using System;
+using System.Threading.Tasks;
+using Windows.Storage;
+using Microsoft.Identity.Client;
+```
 
-            if (userID != null)
+**Class fields**
+
+Both versions of the AuthenticationHelper class will need these fields:
+
+```c#
+// The Client ID is used by the application to uniquely identify itself to the v2.0 authentication endpoint.
+static string clientId = App.Current.Resources["ida:ClientID"].ToString();
+public static string[] Scopes = { "User.Read", "Mail.Send" };
+public static PublicClientApplication IdentityClientApp = new PublicClientApplication(clientId);
+public static string TokenForUser = null;
+public static DateTimeOffset Expiration;
+```
+
+Note that both versions use the MSAL `PublicClientApplication` class to authenticate the user. The `Scopes` field stores the Microsoft Graph permission scopes that the app will need to request when the user authenticates. 
+
+***Client library version***
+
+If you're using the client library, store the `GraphServicesClient` as a field so that you only have to construct it once:
+
+```c#
+private static GraphServiceClient graphClient = null;
+```
+
+***REST version***
+
+If you're using REST calls, you'll need to store some values in the app's roaming settings, since you'll need to store information about the user. (The client library supplies this information in the other version.)
+
+```c#
+public static ApplicationDataContainer _settings = ApplicationData.Current.RoamingSettings;
+```
+
+**GetTokenForUserAsync**
+
+***Client library version***
+
+The `GetTokenForUserAsync` method uses the PublicClientApplicationClass and the ClientId setting to get an access token for the user. If the user hasn't already authenticated, it launches the authentication UI. This is the version of the method to use if you're using the client library.
+
+```c#
+        public static async Task<string> GetTokenForUserAsync()
+        {
+            AuthenticationResult authResult;
+            try
             {
-
-                WebTokenRequest webTokenRequest = new WebTokenRequest(aadAccountProvider, string.Empty, clientId);
-                webTokenRequest.Properties.Add("resource", ResourceUrl);
-
-                // Get an account object for the user
-                userAccount = await WebAuthenticationCoreManager.FindAccountAsync(aadAccountProvider, (string)userID);
-
-
-                // Ensure that the saved account works for getting the token we need
-                WebTokenRequestResult webTokenRequestResult = await WebAuthenticationCoreManager.RequestTokenAsync(webTokenRequest, userAccount);
-                if (webTokenRequestResult.ResponseStatus == WebTokenRequestStatus.Success || webTokenRequestResult.ResponseStatus == WebTokenRequestStatus.AccountSwitch)
-                {
-                    WebTokenResponse webTokenResponse = webTokenRequestResult.ResponseData[0];
-                    userAccount = webTokenResponse.WebAccount;
-                    token = webTokenResponse.Token;
-
-                }
-                else
-                {
-                    // The saved account could not be used for getting a token
-                    // Make sure that the UX is ready for a new sign in
-                    SignOut();
-                }
-
+                authResult = await IdentityClientApp.AcquireTokenSilentAsync(Scopes);
+                TokenForUser = authResult.Token;
             }
-```
 
-The app uses the Microsoft Graph endpoint --  **https://graph.microsoft.com/** -- as the resource value. When it constructs the ``WebTokenRequest`` it uses the client ID value that you added to the App.xaml file. Since the app knows the user ID and the user hasn't disconnected, the WebAccountManager API can find the user account and pass it to the token request. The ``WebAuthenticationCoreManager.RequestTokenAsync`` method returns an access token with the appropriate permissions assigned to it.
-
-If the app finds no value for ``userID`` in the roaming settings, it constructs a ``WebTokenRequest`` that forces the user to authenticate through the UI:
-
-```c#
-            else
+            catch (Exception)
             {
-                // There is no recorded user. Start a sign in flow without imposing a specific account.
-
-                WebTokenRequest webTokenRequest = new WebTokenRequest(aadAccountProvider, string.Empty, clientId, WebTokenRequestPromptType.ForceAuthentication);
-                webTokenRequest.Properties.Add("resource", ResourceUrl);
-
-                WebTokenRequestResult webTokenRequestResult = await WebAuthenticationCoreManager.RequestTokenAsync(webTokenRequest);
-                if (webTokenRequestResult.ResponseStatus == WebTokenRequestStatus.Success)
+                if (TokenForUser == null || Expiration <= DateTimeOffset.UtcNow.AddMinutes(5))
                 {
-                    WebTokenResponse webTokenResponse = webTokenRequestResult.ResponseData[0];
-                    userAccount = webTokenResponse.WebAccount;
-                    token = webTokenResponse.Token;
+                    authResult = await IdentityClientApp.AcquireTokenAsync(Scopes);
 
+                    TokenForUser = authResult.Token;
+                    Expiration = authResult.ExpiresOn;
                 }
             }
+
+            return TokenForUser;
+        }
 ```
 
-If either attempt to retrieve a token is successful, the ``GetTokenHelperAsync`` method finishes by storing important user information in the roaming settings and then returning the token value. Otherwise, it makes sure that the roaming settings are null and returns a null value.
+***REST version***
+
+The REST version of the `GetTokenForUserAsync` method does a little more work, since it also needs to store some information about the signed-in user.
 
 ```c#
-            // We succeeded in getting a valid user.
-            if (userAccount != null)
+        public static async Task<string> GetTokenForUserAsync()
+        {
+            AuthenticationResult authResult;
+            try
             {
+                authResult = await IdentityClientApp.AcquireTokenSilentAsync(Scopes);
+                TokenForUser = authResult.Token;
                 // save user ID in local storage
-                _settings.Values["userID"] = userAccount.Id;
-                _settings.Values["userEmail"] = userAccount.UserName;
-                _settings.Values["userName"] = userAccount.Properties["DisplayName"];
-
-                return token;
+                _settings.Values["userID"] = authResult.User.UniqueId;
+                _settings.Values["userEmail"] = authResult.User.DisplayableId;
+                _settings.Values["userName"] = authResult.User.Name;
             }
 
-            // We didn't succeed in getting a valid user. Clear the app settings so that another user can sign in.
-            else
+            catch (Exception)
             {
-                
-                SignOut();
-                return null;
+                if (TokenForUser == null || Expiration <= DateTimeOffset.UtcNow.AddMinutes(5))
+                {
+                    authResult = await IdentityClientApp.AcquireTokenAsync(Scopes);
+
+                    TokenForUser = authResult.Token;
+                    Expiration = authResult.ExpiresOn;
+
+                    // save user ID in local storage
+                    _settings.Values["userID"] = authResult.User.UniqueId;
+                    _settings.Values["userEmail"] = authResult.User.DisplayableId;
+                    _settings.Values["userName"] = authResult.User.Name;
+                }
             }
+
+            return TokenForUser;
+        }
 ```
 
-## Send an email with Microsoft Graph
+**Signout**
 
-The MailHelper.cs file contains the code that constructs and sends an email. It consists of a single method -- ``ComposeAndSendMailAsync`` -- that constructs and sends a POST request to the **https://graph.microsoft.com/v1.0/me/microsoft.graph.SendMail** endpoint. 
+The `Signout` method in both versions signs out all users logged in through the `PublicClientApplication` (only one user, in this case) and nullifies the `TokenForUser` value. The version that uses the client library also nullifies the stored `GraphServicesClient`, and the REST version nullifies the values stored in the app's roaming settings.
+
+***Client library version***
+
+This is the client library version of the `Signout` method.
+
+```c#
+        public static void SignOut()
+        {
+            foreach (var user in IdentityClientApp.Users)
+            {
+                user.SignOut();
+            }
+            graphClient = null;
+            TokenForUser = null;
+
+        }
+``` 
+
+***REST version***
+
+This is the REST version of the `Signout` method.
+
+```c#
+        public static void SignOut()
+        {
+            foreach (var user in IdentityClientApp.Users)
+            {
+                user.SignOut();
+            }
+
+            TokenForUser = null;
+
+            //Clear stored values from last authentication.
+            _settings.Values["userID"] = null;
+            _settings.Values["userEmail"] = null;
+            _settings.Values["userName"] = null;
+
+        }
+```
+
+**GetAuthenticatedClient (client library only)**
+
+Finally, if you're using the client library, you'll need a method that creates a `GraphServicesClient`. This method  creates a client that uses the `GetTokenForUserAsync` method for every call through the client to the Microsoft Graph.
+
+```c#
+        public static GraphServiceClient GetAuthenticatedClient()
+        {
+            if (graphClient == null)
+            {
+                // Create Microsoft Graph client.
+                try
+                {
+                    graphClient = new GraphServiceClient(
+                        "https://graph.microsoft.com/v1.0",
+                        new DelegateAuthenticationProvider(
+                            async (requestMessage) =>
+                            {
+                                var token = await GetTokenForUserAsync();
+                                requestMessage.Headers.Authorization = new AuthenticationHeaderValue("bearer", token);
+                            }));
+                    return graphClient;
+                }
+
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Could not create a graph client: " + ex.Message);
+                }
+            }
+
+            return graphClient;
+        }
+```
+
+## Send an email with the Microsoft Graph
+
+Open the MailHelper.cs file in your starter project. This file contains the code that constructs and sends an email. It consists of a single method -- ``ComposeAndSendMailAsync`` -- that constructs and sends a POST request to the **https://graph.microsoft.com/v1.0/me/microsoft.graph.SendMail** endpoint. 
 
 The ``ComposeAndSendMailAsync`` method takes three string values -- ``subject``, ``bodyContent``, and ``recipients`` -- that are passed to it by the MainPage.xaml.cs file. The ``subject`` and ``bodyContent`` strings are stored, along with all other UI strings, in the Resources.resw file. The ``recipients`` string comes from the address box in the app's interface. 
+
+**REST version**
+
+The REST version of this file requires the following `using` declarations:
+
+```c#
+using System;
+using System.Threading.Tasks;
+```
 
 Since the user can potentially pass more than one address, the first task is to split the ``recipients`` string into a set of EmailAddress objects that can then be passed in the POST body of the request:
 
@@ -199,12 +351,420 @@ The second task is to construct a valid JSON Message object and send it to the *
                 }
 ```
 
-Once you've made a successful REST request, you've performed the three steps required for interacting with Microsoft Graph: app registration, user authentication, and making a REST request.
+The complete class will look like this:
+
+```c#
+    class MailHelper
+    {
+        /// <summary>
+        /// Compose and send a new email.
+        /// </summary>
+        /// <param name="subject">The subject line of the email.</param>
+        /// <param name="bodyContent">The body of the email.</param>
+        /// <param name="recipients">A semicolon-separated list of email addresses.</param>
+        /// <returns></returns>
+        internal async Task ComposeAndSendMailAsync(string subject,
+                                                            string bodyContent,
+                                                            string recipients)
+        {
+
+            // Prepare the recipient list
+            string[] splitter = { ";" };
+            var splitRecipientsString = recipients.Split(splitter, StringSplitOptions.RemoveEmptyEntries);
+            string recipientsJSON = null;
+
+            int n = 0;
+            foreach (string recipient in splitRecipientsString)
+            {
+                if ( n==0)
+                recipientsJSON += "{'EmailAddress':{'Address':'" + recipient.Trim() + "'}}";
+                else
+                {
+                    recipientsJSON += ", {'EmailAddress':{'Address':'" + recipient.Trim() + "'}}";
+                }
+                n++;
+            }
+
+            try
+            {
+
+                HttpClient client = new HttpClient();
+                var token = await AuthenticationHelper.GetTokenForUserAsync();
+                client.DefaultRequestHeaders.Add("Authorization", "Bearer " + token);
+
+                // Build contents of post body and convert to StringContent object.
+                // Using line breaks for readability.
+                string postBody = "{'Message':{" 
+                    +  "'Body':{ " 
+                    + "'Content': '" + bodyContent + "'," 
+                    + "'ContentType':'HTML'}," 
+                    + "'Subject':'" + subject + "'," 
+                    + "'ToRecipients':[" + recipientsJSON +  "]}," 
+                    + "'SaveToSentItems':true}";
+
+                var emailBody = new StringContent(postBody, System.Text.Encoding.UTF8, "application/json");
+
+                HttpResponseMessage response = await client.PostAsync(new Uri("https://graph.microsoft.com/v1.0/me/microsoft.graph.SendMail"), emailBody);
+
+                if ( !response.IsSuccessStatusCode)
+                {
+
+                    throw new Exception("We could not send the message: " + response.StatusCode.ToString());
+                }
 
 
-<!--## Additional resources
+            }
 
-* [Develop Windows Universal Apps with Azure AD and the Windows 10 Identity API](http://blogs.technet.com/b/ad/archive/2015/08/03/develop-windows-universal-apps-with-azure-ad-and-the-windows-10-identity-api.aspx)
-* [AzureAD-NativeClient-UWP-WAM](https://github.com/Azure-Samples/AzureAD-NativeClient-UWP-WAM)
-* [Office Dev Center](http://dev.office.com)-->
+            catch (Exception e)
+            {
+                throw new Exception("We could not send the message: " + e.Message);
+            }
+        }
+    }
+```
+
+**Client library version**
+
+The client library version of this file requires the following `using` declarations:
+
+```c#
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+```
+
+The code for sending a message with the client library looks very similar to the code that uses REST calls. Instead of creating JSON objects and passing them directly to the **SendMail** endpoint in an HTTP POST request, you create equivalent objects that are defined in the client library and pass the resulting `Message` object to the `SendMail` method of the `GraphServiceClient`. The client does the work of fetching the access token and passing the request to the **SendMail** endpoint.
+
+The complete class will look like this:
+
+```c#
+    public class MailHelper
+    {
+        /// <summary>
+        /// Compose and send a new email.
+        /// </summary>
+        /// <param name="subject">The subject line of the email.</param>
+        /// <param name="bodyContent">The body of the email.</param>
+        /// <param name="recipients">A semicolon-separated list of email addresses.</param>
+        /// <returns></returns>
+        public async Task ComposeAndSendMailAsync(string subject,
+                                                            string bodyContent,
+                                                            string recipients)
+        {
+
+            // Prepare the recipient list
+            string[] splitter = { ";" };
+            var splitRecipientsString = recipients.Split(splitter, StringSplitOptions.RemoveEmptyEntries);
+            List<Recipient> recipientList = new List<Recipient>();
+
+            foreach (string recipient in splitRecipientsString)
+            {
+                recipientList.Add(new Recipient { EmailAddress = new EmailAddress { Address = recipient.Trim() } });
+            }
+
+            try
+            {
+                var graphClient = AuthenticationHelper.GetAuthenticatedClient();
+
+                var email = new Message
+                {
+                    Body = new ItemBody
+                    {
+                        Content = bodyContent,
+                        ContentType = BodyType.Html,
+                    },
+                    Subject = subject,
+                    ToRecipients = recipientList,
+                };
+
+                try
+                {
+                    await graphClient.Me.SendMail(email, true).Request().PostAsync();
+                }
+                catch (ServiceException exception)
+                {
+                    throw new Exception("We could not send the message: " + exception.Error == null ? "No error message returned." : exception.Error.Message);
+                }
+
+
+            }
+
+            catch (Exception e)
+            {
+                throw new Exception("We could not send the message: " + e.Message);
+            }
+        }
+    }
+``` 
+
+##Create the user interface in MainPage.xaml
+
+Now that you've written the code that does all the work of authenticating the user and sending a message through the Microsoft Graph, all that you have to do is create the simple interface described above. 
+
+The MainPage.xaml file in your starter project already includes all of the XAML you'll need. All you need to do is add the code that drives the interface to the MainPage.xaml.cs file. Locate this file in your project and open it.
+
+This file already contains all of the `using` declarations required for both the client library and REST versions of the sample. Note that if you're using the client library, you won't need this last declaration:
+
+```c#
+using Windows.Storage;
+```
+
+***Client library version***
+
+The client library version of the app creates a `GraphServiceClient` when the user authenticates. 
+
+Add this code inside your namespace to complete the client library version of the MainPage class in MainPage.xaml.cs:
+
+```c#
+    public sealed partial class MainPage : Page
+    {
+        private string _mailAddress;
+        private string _displayName = null;
+        private MailHelper _mailHelper = new MailHelper();
+
+        public MainPage()
+        {
+            this.InitializeComponent();
+        }
+
+        protected override void OnNavigatedTo(NavigationEventArgs e)
+        {
+            // Developer code - if you haven't registered the app yet, we warn you. 
+            if (!App.Current.Resources.ContainsKey("ida:ClientID"))
+            {
+                InfoText.Text = ResourceLoader.GetForCurrentView().GetString("NoClientIdMessage");
+                ConnectButton.IsEnabled = false;
+            }
+            else
+            {
+                InfoText.Text = ResourceLoader.GetForCurrentView().GetString("ConnectPrompt");
+                ConnectButton.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// Signs in the current user.
+        /// </summary>
+        /// <returns></returns>
+        public async Task<bool> SignInCurrentUserAsync()
+        {
+            var graphClient = AuthenticationHelper.GetAuthenticatedClient();
+
+            if (graphClient != null)
+            {
+                var user = await graphClient.Me.Request().GetAsync();
+                string userId = user.Id;
+                _mailAddress = user.UserPrincipalName;
+                _displayName = user.DisplayName;
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+
+        }
+
+
+        private async void ConnectButton_Click(object sender, RoutedEventArgs e)
+        {
+            ProgressBar.Visibility = Visibility.Visible;
+            if (await SignInCurrentUserAsync())
+            { 
+                InfoText.Text = "Hi " + _displayName + "," + Environment.NewLine + ResourceLoader.GetForCurrentView().GetString("SendMailPrompt");
+                MailButton.IsEnabled = true;
+                EmailAddressBox.IsEnabled = true;
+                ConnectButton.Visibility = Visibility.Collapsed;
+                DisconnectButton.Visibility = Visibility.Visible;
+                EmailAddressBox.Text = _mailAddress;
+            }
+            else
+            {
+                InfoText.Text = ResourceLoader.GetForCurrentView().GetString("AuthenticationErrorMessage");
+            }
+
+            ProgressBar.Visibility = Visibility.Collapsed;
+        }
+
+        private async void MailButton_Click(object sender, RoutedEventArgs e)
+        {
+            _mailAddress = EmailAddressBox.Text;
+            ProgressBar.Visibility = Visibility.Visible;
+            MailStatus.Text = string.Empty;
+            try
+            {
+                await _mailHelper.ComposeAndSendMailAsync(ResourceLoader.GetForCurrentView().GetString("MailSubject"), ComposePersonalizedMail(_displayName), _mailAddress);
+                MailStatus.Text = string.Format(ResourceLoader.GetForCurrentView().GetString("SendMailSuccess"), _mailAddress);
+            }
+            catch (Exception)
+            {
+                MailStatus.Text = ResourceLoader.GetForCurrentView().GetString("MailErrorMessage");
+            }
+            finally
+            {
+                ProgressBar.Visibility = Visibility.Collapsed;
+            }
+            
+        }
+
+        // <summary>
+        // Personalizes the email.
+        // </summary>
+        public static string ComposePersonalizedMail(string userName)
+        {
+            return String.Format(ResourceLoader.GetForCurrentView().GetString("MailContents"), userName);
+        }
+
+        private void Disconnect_Click(object sender, RoutedEventArgs e)
+        {
+            ProgressBar.Visibility = Visibility.Visible;
+            AuthenticationHelper.SignOut();
+            ProgressBar.Visibility = Visibility.Collapsed;
+            MailButton.IsEnabled = false;
+            EmailAddressBox.IsEnabled = false;
+            ConnectButton.Visibility = Visibility.Visible;
+            InfoText.Text = ResourceLoader.GetForCurrentView().GetString("ConnectPrompt");
+            this._displayName = null;
+            this._mailAddress = null;
+        }
+    }
+```
+
+***REST version***
+
+The REST version of this class looks very similar to the client library version, except that it calls the `GetTokenForUserAsync` method directly when the user authenticates. It also retrieves user values from the app's roaming settings. 
+
+Add this code inside your namespace to complete the REST version of the MainPage class in MainPage.xaml.cs:
+
+```c#
+    public sealed partial class MainPage : Page
+    {
+        private string _mailAddress;
+        private string _displayName = null;
+        private MailHelper _mailHelper = new MailHelper();
+        public static ApplicationDataContainer _settings = ApplicationData.Current.RoamingSettings;
+
+        public MainPage()
+        {
+            this.InitializeComponent();
+        }
+
+        protected override void OnNavigatedTo(NavigationEventArgs e)
+        {
+            // Developer code - if you haven't registered the app yet, we warn you. 
+            if (!App.Current.Resources.ContainsKey("ida:ClientID"))
+            {
+                InfoText.Text = ResourceLoader.GetForCurrentView().GetString("NoClientIdMessage");
+                ConnectButton.IsEnabled = false;
+            }
+            else
+            {
+                InfoText.Text = ResourceLoader.GetForCurrentView().GetString("ConnectPrompt");
+                ConnectButton.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// Signs in the current user.
+        /// </summary>
+        /// <returns></returns>
+        public async Task<bool> SignInCurrentUserAsync()
+        {
+            var token = await AuthenticationHelper.GetTokenForUserAsync();
+
+            if (token != null)
+            {
+                string userId = (string)_settings.Values["userID"];
+                _mailAddress = (string)_settings.Values["userEmail"];
+                _displayName = (string)_settings.Values["userName"];
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+
+        }
+
+
+        private async void ConnectButton_Click(object sender, RoutedEventArgs e)
+        {
+            ProgressBar.Visibility = Visibility.Visible;
+            if (await SignInCurrentUserAsync())
+            { 
+                InfoText.Text = "Hi " + _displayName + "," + Environment.NewLine + ResourceLoader.GetForCurrentView().GetString("SendMailPrompt");
+                MailButton.IsEnabled = true;
+                EmailAddressBox.IsEnabled = true;
+                ConnectButton.Visibility = Visibility.Collapsed;
+                DisconnectButton.Visibility = Visibility.Visible;
+                EmailAddressBox.Text = _mailAddress;
+            }
+            else
+            {
+                InfoText.Text = ResourceLoader.GetForCurrentView().GetString("AuthenticationErrorMessage");
+            }
+
+            ProgressBar.Visibility = Visibility.Collapsed;
+        }
+
+        private async void MailButton_Click(object sender, RoutedEventArgs e)
+        {
+            _mailAddress = EmailAddressBox.Text;
+            ProgressBar.Visibility = Visibility.Visible;
+            MailStatus.Text = string.Empty;
+            try
+            {
+                await _mailHelper.ComposeAndSendMailAsync(ResourceLoader.GetForCurrentView().GetString("MailSubject"), ComposePersonalizedMail(_displayName), _mailAddress);
+                MailStatus.Text = string.Format(ResourceLoader.GetForCurrentView().GetString("SendMailSuccess"), _mailAddress);
+            }
+            catch (Exception)
+            {
+                MailStatus.Text = ResourceLoader.GetForCurrentView().GetString("MailErrorMessage");
+            }
+            finally
+            {
+                ProgressBar.Visibility = Visibility.Collapsed;
+            }
+            
+        }
+
+        // <summary>
+        // Personalizes the email.
+        // </summary>
+        public static string ComposePersonalizedMail(string userName)
+        {
+            return String.Format(ResourceLoader.GetForCurrentView().GetString("MailContents"), userName);
+        }
+
+        private void Disconnect_Click(object sender, RoutedEventArgs e)
+        {
+            ProgressBar.Visibility = Visibility.Visible;
+            AuthenticationHelper.SignOut();
+            ProgressBar.Visibility = Visibility.Collapsed;
+            MailButton.IsEnabled = false;
+            EmailAddressBox.IsEnabled = false;
+            ConnectButton.Visibility = Visibility.Visible;
+            InfoText.Text = ResourceLoader.GetForCurrentView().GetString("ConnectPrompt");
+            this._displayName = null;
+            this._mailAddress = null;
+        }
+    }
+```
+ 
+You've now performed the three steps required for interacting with Microsoft Graph: app registration, user authentication, and making a request. 
+
+## Run the app
+1. Press F5 to build and run the app. 
+
+2. Sign in with your personal or work or school account and grant the requested permissions.
+
+3. Choose the **Send email** button. When the mail is sent, a Success message is displayed below the button.
+
+## Next steps
+- Try out the REST API using the [Graph explorer](https://graph.microsoft.io/graph-explorer).
+- Find examples of common operations for both REST and SDK operations in the [Microsoft Graph UWP Snippets Sample (SDK)](https://github.com/microsoftgraph/uwp-csharp-snippets-sample) and the [Microsoft Graph UWP Snippets Sample (REST)](https://github.com/microsoftgraph/uwp-csharp-snippets-rest-sample), or explore our other [UWP samples](https://github.com/microsoftgraph?utf8=%E2%9C%93&query=uwp) on GitHub.
+
+## See also
+- [Azure AD v2.0 protocols](https://azure.microsoft.com/en-us/documentation/articles/active-directory-v2-protocols/)
+- [Azure AD v2.0 tokens](https://azure.microsoft.com/en-us/documentation/articles/active-directory-v2-tokens/)
 
