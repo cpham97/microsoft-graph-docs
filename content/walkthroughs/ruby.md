@@ -4,7 +4,7 @@ This article describes the tasks required to get an access token from the v2 aut
 
 This is the app you'll create. 
 
-![Microsoft Ruby on Rails Connect sample screenshot](/images/Microsoft-Graph-Ruby-Connect-UI.png)
+![Microsoft Ruby on Rails Connect sample screenshot](./images/Microsoft-Graph-Ruby-Connect-UI.png)
 
 
 **Don't feel like building an app?** Get up and running fast using the [Quick Start](), or download the [sample-name]() that this walkthrough is based on.
