@@ -4,7 +4,7 @@ This article describes the tasks required to get an access token from the v2 aut
 
 This is the app you'll create. 
 
-![Microsoft Ruby on Rails Connect sample screenshot](/readme-images/Microsoft-Graph-Ruby-Connect-UI.png)
+![Microsoft Ruby on Rails Connect sample screenshot](/images/Microsoft-Graph-Ruby-Connect-UI.png)
 
 
 **Don't feel like building an app?** Get up and running fast using the [Quick Start](), or download the [sample-name]() that this walkthrough is based on.
@@ -168,14 +168,11 @@ In ```app/controllers/pages_controller.rb```, replace the empty ```callback``` m
     logger.info "[callback] - Access token: #{session[:access_token]}"
   end
 
-  def auth_hash
-    request.env['omniauth.auth']
-  end 
 ```
 
 This method retrieves the authentication hash, and then stores the access token, user name, and email in the current session.
 
->Note: The simple authentication  and token handling in this project is presented for illustrative purposes only. In a production app, you would TODO
+>Note: The simple authentication  and token handling in this project is presented for illustrative purposes only. In a production app, you would likely construct a more robust way of handling authentication, including secure token handling and token refresh.
 
 ## Call the Microsoft Graph
 
@@ -273,12 +270,17 @@ Finally, the code uses the HTTP response code returned to notify the user whethe
 
 ## Run the app
 
-1. To start the Rails application, type the following command.
+1. Install the Rails application and dependencies with the following command.
+
+	```
+	bundle install
+	```
+2. To start the Rails application, type the following command.
 
 	```
 	rackup -p 3000
 	```
-2. Go to ```http://localhost:3000``` in your web browser.
+3. Go to ```http://localhost:3000``` in your web browser.
 
 ## Next steps
 - Try out the REST API using the [Graph explorer](https://graph.microsoft.io/graph-explorer).
