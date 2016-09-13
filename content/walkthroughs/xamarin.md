@@ -83,7 +83,7 @@ The `GetTokenHelperAsync` method runs when the user authenticates and subsequent
 
 **Using declarations**
 
-Add these declarations to the top of the file:
+Make sure you have these declarations to the top of the file:
 
 ```c#
 using Microsoft.Graph;
@@ -96,7 +96,7 @@ using Microsoft.Identity.Client;
 
 **Class fields**
 
-Add these fields inside the AuthenticationHelper class:
+Make sure you have these fields inside the AuthenticationHelper class:
 
 ```c#
 public static string TokenForUser = null;
