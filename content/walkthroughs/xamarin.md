@@ -52,7 +52,7 @@ If you want to run the iOS project in this sample, you'll need the following:
 2. Open the **App.cs** file inside the **XamarinConnect (Portable)** project and locate the `ClientId` field. Replace the application ID placeholder with the application id of the app you registered.
 
 ```c#
-public static string ClientID = "<the application ID of your registered app>";
+public static string ClientID = "ENTER_YOUR_CLIENT_ID";
 public static string[] Scopes = { "User.Read", "Mail.Send" };
 ```
 The `Scopes` value stores the Microsoft Graph permission scopes that the app will need to request when the user authenticates. Note that the `App` class constructor uses the ClientID value to instantiate an instance of the MSAL `PublicClientApplication` class. You'll use this class later to authenticate the user.
