@@ -69,6 +69,8 @@ The [Microsoft Authentication Library](https://www.nuget.org/packages/Microsoft.
 2. Click Browse and search for Microsoft.Identity.Client.
 3. Select the latest version of the Microsoft Authentication Library and click **Install**.
 
+Perform these same steps for the **XamarinConnect.Droid**, **XamarinConnect.iOS**, and **XamarinConnect.UWP** projects. Your app will not build if MSAL isn't installed in all four projects.
+
 ## Install the Microsoft Graph Client Library
 
 1. In the Solution Explorer right-click the **XamarinConnect (Portable)** project and select **Manage NuGet Packages...**
