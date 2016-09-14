@@ -67,7 +67,7 @@ To follow along with this walkthrough, you'll need:
 
 The [Microsoft Authentication Library](https://www.nuget.org/packages/Microsoft.Identity.Client) contains classes and methods that make it easy to authenticate users through the v2 authentication endpoint.
 
-1. In the Solution Explorer right-click the **Microsoft-Graph-UWP-Connect** project and select **Manage NuGet Packages...**
+1. In the Solution Explorer right-click the project name and select **Manage NuGet Packages...**
 2. Click Browse and search for Microsoft.Identity.Client.
 3. Select the latest version of the Microsoft Authentication Library and click **Install**.
 
@@ -75,7 +75,7 @@ The [Microsoft Authentication Library](https://www.nuget.org/packages/Microsoft.
 
 > **Note** If you're going to use raw REST calls to access the Microsoft Graph, you can skip this section.
 
-1. In the Solution Explorer right-click the **Microsoft-Graph-UWP-Connect** project and select **Manage NuGet Packages...**
+1. In the Solution Explorer right-click the project name and select **Manage NuGet Packages...**
 2. Click Browse and search for Microsoft.Graph.
 3. Select the latest version of the Microsoft Graph Client Library and click **Install**.
 
