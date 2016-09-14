@@ -503,11 +503,7 @@ Now that you've written the code that does all the work of authenticating the us
 
 The MainPage.xaml file in your starter project already includes all of the XAML you'll need. All you need to do is add the code that drives the interface to the MainPage.xaml.cs file. Locate this file in your project and open it.
 
-This file already contains all of the `using` declarations required for both the client library and REST versions of the sample. Note that if you're using the client library, you won't need this last declaration:
-
-```c#
-using Windows.Storage;
-```
+This file already contains all of the `using` declarations required for both the client library and REST versions of the sample.
 
 ***Client library version***
 
