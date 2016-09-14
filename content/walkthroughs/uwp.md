@@ -57,9 +57,9 @@ To follow along with this walkthrough, you'll need:
 ```xml
     <Application.Resources>
         <!-- Add your Client Id here. -->
-        <x:String x:Key="ida:ClientID"><the application ID of your registered app></x:String>
+        <x:String x:Key="ida:ClientID">ENTER_YOUR_CLIENT_ID</x:String>
 		<!-- Add your Redirect URI here. -->
-        <x:String x:Key="ida:ReturnUrl"><the redirect URI of your registered app></x:String>
+        <x:String x:Key="ida:ReturnUrl">ENTER_YOUR_REDIRECT_URI</x:String>
     </Application.Resources>
 ```
 
